@@ -1,6 +1,8 @@
 # This script aims to remove clips that is greatest than a certain duration, based on the params below.
 
 import h5py
+from tqdm import tqdm
+
 
 def remove_long_clips(
     source_hdf5_path,
@@ -12,7 +14,8 @@ def remove_long_clips(
     with h5py.File(source_hdf5_path, "r") as source_hdf5, h5py.File(
         destination_hdf5_path, "w"
     ) as dest_hdf5:
-        for clip_name in source_hdf5.keys():
+        # Wrap source_hdf5.keys() with tqdm for progress bar
+        for clip_name in tqdm(source_hdf5.keys(), desc="Filtering clips"):
             grp = source_hdf5[clip_name]
             if "mfccs" in grp:
                 mfccs = grp["mfccs"]
@@ -27,8 +30,8 @@ def remove_long_clips(
 
 
 if __name__ == "__main__":
-    source_hdf5_path = "path_to_your_existing_hdf5_file.h5"
-    destination_hdf5_path = "path_to_your_filtered_hdf5_file.h5"
+    source_hdf5_path = r"C:\Users\jonec\Documents\SUTD\T6\AI\STT\Recorded-Lecture-Transcription-STT\processed_dataset (mfccs only).h5"
+    destination_hdf5_path = r"C:\Users\jonec\Documents\SUTD\T6\AI\STT\Recorded-Lecture-Transcription-STT\reduced_mfcc_dataset.h5"
 
     # Adjust these parameters as needed
     max_duration = 8.0  # seconds
@@ -38,6 +41,7 @@ if __name__ == "__main__":
     remove_long_clips(
         source_hdf5_path, destination_hdf5_path, max_duration, sampling_rate, hop_length
     )
+
     print(
         f"Clips longer than {max_duration} seconds have been removed. Processed dataset saved to: {destination_hdf5_path}"
     )
