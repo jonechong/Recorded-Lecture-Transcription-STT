@@ -92,15 +92,17 @@ def process_audio_file(
     file_path = os.path.join(folder_path, filename)
     signal, _ = None, None
 
-    # Load the signal if any of the features need to be computed
+    # Reference or create the group for the file
+    grp = (
+        hdf5_file.get(filename)
+        if filename in hdf5_file
+        else hdf5_file.create_group(filename)
+    )
+
+    # Determine if we need to load the audio file by checking if any feature is missing
     need_to_load_signal = any(
-        [
-            filename not in hdf5_file,
-            "mfccs" not in hdf5_file[filename],
-            "zcr" not in hdf5_file[filename],
-            "spectral_centroid" not in hdf5_file[filename],
-            "melspectrogram" not in hdf5_file[filename],
-        ]
+        feature not in grp
+        for feature in ["mfccs", "zcr", "spectral_centroid", "melspectrogram"]
     )
 
     if need_to_load_signal:
@@ -109,13 +111,6 @@ def process_audio_file(
         except Exception as e:
             print(f"Error loading {filename}: {e}")
             return False
-
-    # Reference or create the group for the file
-    grp = (
-        hdf5_file.get(filename)
-        if filename in hdf5_file
-        else hdf5_file.create_group(filename)
-    )
 
     # Process and store each feature if it's not already in the group
     if "mfccs" not in grp:
@@ -145,7 +140,6 @@ def process_audio_file(
 
     if "melspectrogram" not in grp:
         try:
-            # Compute the mel-spectrogram
             melspectrogram = librosa.feature.melspectrogram(
                 y=signal,
                 sr=sampling_rate,
@@ -153,7 +147,6 @@ def process_audio_file(
                 hop_length=hop_length,
                 n_mels=128,
             )
-            # Convert to decibels
             melspectrogram_db = librosa.power_to_db(melspectrogram, ref=np.max)
             grp.create_dataset("melspectrogram", data=melspectrogram_db)
         except Exception as e:
@@ -171,19 +164,12 @@ def process_files(
     folder_path, hdf5_path, labels_dict, sampling_rate=16000, hop_length=512, n_mfcc=13
 ):
     processed_files = 0
+    updated_files = 0  # Keep track of files updated with missing features
     skipped_files = 0
 
-    with h5py.File(
-        hdf5_path, "a"
-    ) as hdf5_file:  # 'a' mode to append to or create the file
+    with h5py.File(hdf5_path, "a") as hdf5_file:
         for filename in tqdm(os.listdir(folder_path), desc="Processing files"):
             if filename.endswith(".mp3"):
-                # Check if this file has already been processed
-                if filename in hdf5_file:
-                    print(f"{filename} already processed. Skipping.")
-                    skipped_files += 1
-                    continue
-
                 success = process_audio_file(
                     filename,
                     folder_path,
@@ -194,18 +180,22 @@ def process_files(
                     n_mfcc,
                 )
                 if success:
-                    processed_files += 1
+                    if filename in hdf5_file:
+                        updated_files += 1
+                    else:
+                        processed_files += 1
                 else:
                     skipped_files += 1
 
-    print(f"Processed {processed_files} files.")
+    print(f"Processed {processed_files} new files.")
+    print(f"Updated {updated_files} files with missing features.")
     print(f"Skipped {skipped_files} files.")
 
 
 # change source and destination names accordingly
 if __name__ == "__main__":
     folder_path = r"C:\Users\jonec\Documents\SUTD\T6\AI\Voice dataset\cv-corpus-4\clips"
-    hdf5_path = "mfccs_dataset.h5"
+    hdf5_path = "processed_dataset.h5"
     label_file_path = (
         r"C:\Users\jonec\Documents\SUTD\T6\AI\Voice dataset\cv-corpus-4\labels.csv"
     )
