@@ -1,2 +1,5 @@
 *.h5
 *.zip
+*.pth
+*.tar
+training_metrics.txt
